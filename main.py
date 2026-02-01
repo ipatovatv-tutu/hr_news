@@ -277,16 +277,17 @@ def _normalize_vc_redirect_link(link: str) -> str:
 
 
 def _add_vc_articles_to_block(articles, used_titles, max_items, source_label="vc.ru"):
-    """Общая логика: опционально фильтр по HR_KEYWORDS, ИИ, добавление в block."""
+    """Общая логика: опционально фильтр по HR_KEYWORDS, ИИ, добавление в block. Пропускаем статьи с коротким/мусорным заголовком."""
     block = ""
     added = 0
     for item in articles:
         if added >= max_items:
             break
-        title = item.get("title", "")
+        title = (item.get("title", "") or "").strip()
         link = _normalize_vc_redirect_link(item.get("link", "") or "")
         snippet = item.get("snippet", title)
-        if not title or title in used_titles:
+        # Не показываем обрезки вроде "подал", "hh.ru", "исследования" — только осмысленные заголовки
+        if not title or len(title) < 20 or title in used_titles:
             continue
         if VC_FILTER_BY_HR_KEYWORDS:
             text = (title + " " + snippet).lower()
@@ -734,26 +735,28 @@ def collect_vc_news(used_titles, sent_articles=None):
             merged.append(a)
     print("vc.ru: всего статей для ИИ (без уже отправленных):", len(merged))
 
+    block = ""
     if merged:
         print("vc.ru: ИИ формирует дайджест за неделю по HR...")
         block = hr_digest_from_vc_articles(merged)
         if block:
             print("vc.ru: дайджест готов, символов:", len(block))
             return block, used_titles
-        print("vc.ru: ИИ вернул пустой блок, пробуем запасной путь (текст страницы)...")
+        print("vc.ru: ИИ вернул пустой блок, пробуем дайджест из текста страницы (Playwright)...")
 
-    # Запасной путь: парсер не нашёл статей — забираем текст страницы и отдаём ИИ
-    if not merged:
-        print("vc.ru: статей по ссылкам нет, загружаем текст страницы для ИИ...")
+    # Запасной путь: дайджест из текста страницы (когда списка статей нет или ИИ вернул пусто)
+    page_text = None
+    if not merged or not block:
+        print("vc.ru: загружаем текст страницы для ИИ...")
         page_text = get_vc_page_text(url=VC_CHANNEL_URL, scroll_times=4)
         print("vc.ru: получено символов:", len(page_text or ""))
-        if page_text and len(page_text.strip()) >= 300:
-            block = hr_digest_from_page_text(page_text, exclude_urls=sent_articles)
-            if block:
-                print("vc.ru: дайджест из текста страницы готов")
-                return block, used_titles
+    if page_text and len(page_text.strip()) >= 300:
+        block = hr_digest_from_page_text(page_text, exclude_urls=sent_articles)
+        if block:
+            print("vc.ru: дайджест из текста страницы готов")
+            return block, used_titles
 
-    # Последний вариант: по каждой статье вызываем ИИ и добавляем в блок
+    # Последний вариант: по каждой статье вызываем ИИ (только с нормальными заголовками)
     block = ""
     b1, used_titles, n1 = _add_vc_articles_to_block(
         articles_channel, used_titles, VC_CHANNEL_MAX, source_label="vc.ru/hr"
