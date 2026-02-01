@@ -129,7 +129,7 @@ def clean_digest_block(text: str) -> str:
 # =====================
 # OPENAI
 # =====================
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or "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"
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 def hr_insight_ai(title, summary):
