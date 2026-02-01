@@ -1,0 +1,7 @@
+feedparser
+requests
+openai
+telethon
+playwright
+schedule
+beautifulsoup4
