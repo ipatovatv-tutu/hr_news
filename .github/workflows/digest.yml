@@ -1,0 +1,42 @@
+# HR-дайджест по расписанию: понедельник и четверг в 09:00 по Москве (06:00 UTC).
+# Компьютер может быть выключен — запуск на серверах GitHub.
+
+name: HR Digest
+
+on:
+  schedule:
+    # Пн и Чт в 06:00 UTC = 09:00 Москва (UTC+3)
+    - cron: "0 6 * * 1,4"
+  workflow_dispatch:
+    # Ручной запуск: Actions → HR Digest → Run workflow
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore sent_articles
+        uses: actions/cache@v4
+        with:
+          path: sent_articles.json
+          key: hr-digest-sent-articles
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run digest
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python main.py --once
+    # Кэш sent_articles.json сохраняется автоматически в конце успешного job
