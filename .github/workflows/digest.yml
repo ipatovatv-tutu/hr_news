@@ -5,10 +5,12 @@ name: HR Digest
 
 on:
   schedule:
-    # Пн и Чт в 06:00 UTC = 09:00 Москва (UTC+3)
     - cron: "0 6 * * 1,4"
   workflow_dispatch:
-    # Ручной запуск: Actions → HR Digest → Run workflow
+    inputs:
+      chat_id:
+        description: "Chat ID (когда пользователь нажал /digest в боте)"
+        required: false
 
 jobs:
   send-digest:
