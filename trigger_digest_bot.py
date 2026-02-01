@@ -45,8 +45,8 @@ def send_telegram(text: str, chat_id: str):
         print("Telegram error:", e)
 
 
-def trigger_workflow(chat_id: str) -> bool:
-    """Запускает workflow HR Digest с input chat_id."""
+def trigger_workflow(chat_id: str) -> tuple[bool, str]:
+    """Запускает workflow HR Digest с input chat_id. Возвращает (успех, сообщение об ошибке)."""
     owner, repo = GITHUB_REPO.strip().split("/", 1)
     url = f"https://api.github.com/repos/{owner}/{repo}/actions/workflows/digest.yml/dispatches"
     headers = {
@@ -54,18 +54,45 @@ def trigger_workflow(chat_id: str) -> bool:
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    # ref — ветка, от которой запускать (обычно main или master)
     ref = os.environ.get("GITHUB_REF", "main")
-    body = {"ref": ref, "inputs": {"chat_id": chat_id}}
+    body_with_inputs = {"ref": ref, "inputs": {"chat_id": chat_id}}
+    body_no_inputs = {"ref": ref}
     try:
-        r = requests.post(url, headers=headers, json=body, timeout=15)
+        r = requests.post(url, headers=headers, json=body_with_inputs, timeout=15)
         if r.status_code == 204:
-            return True
-        print("GitHub API error:", r.status_code, r.text[:400])
-        return False
+            return True, ""
+        err = r.text[:500]
+        # Если на GitHub старая версия workflow без inputs — запускаем без chat_id (дайджест уйдёт в CHAT_ID из секретов)
+        if r.status_code == 422 and "Unexpected inputs" in err:
+            print("Workflow без input chat_id, запускаю без inputs (дайджест в CHAT_ID из секретов)")
+            r = requests.post(url, headers=headers, json=body_no_inputs, timeout=15)
+            if r.status_code == 204:
+                return True, ""
+            err = r.text[:500]
+        print("GitHub API error:", r.status_code, err)
+        if r.status_code == 404:
+            return False, "404: репозиторий или workflow не найден. Проверь GITHUB_REPO (логин/репо) и что ветка " + ref + " есть. Если ветка master — задай GITHUB_REF=master"
+        if r.status_code == 401:
+            return False, "401: неверный или истёкший GITHUB_TOKEN"
+        if r.status_code == 403:
+            return False, "403: у токена нет прав. Нужен scope repo или workflow (classic) / Actions: Write (fine-grained)"
+        if r.status_code == 422:
+            try:
+                data = r.json()
+                msg = data.get("message", "")
+                errs = data.get("errors", [])
+                if errs:
+                    msg = msg + " " + str(errs[0])
+                if "Reference not found" in msg or "ref" in msg.lower():
+                    return False, f"422: Ветка «{ref}» не найдена. Если в репо ветка master, задай: export GITHUB_REF=master"
+                return False, "422: " + (msg or err[:200])
+            except Exception:
+                pass
+            return False, "422: Ошибка запроса (ветка ref или inputs). Проверь: в репо есть ветка main (или задай GITHUB_REF=master), файл .github/workflows/digest.yml загружен."
+        return False, f"GitHub ответил {r.status_code}. В терминале полный текст ошибки."
     except Exception as e:
         print("GitHub trigger error:", e)
-        return False
+        return False, str(e)
 
 
 def main():
@@ -92,10 +119,11 @@ def main():
                 if text.lower().startswith("/digest") or text.strip().lower() == "/дайджест":
                     print("Команда /digest от chat_id:", chat_id)
                     send_telegram("Собираю дайджест… Запускаю на GitHub, через 1–2 минуты придёт сообщение.", chat_id)
-                    if trigger_workflow(chat_id):
+                    ok, err_msg = trigger_workflow(chat_id)
+                    if ok:
                         send_telegram("Дайджест запущен. Ожидайте сообщение в этом чате.", chat_id)
                     else:
-                        send_telegram("Не удалось запустить дайджест. Проверьте GITHUB_TOKEN и GITHUB_REPO.", chat_id)
+                        send_telegram("Не удалось запустить дайджест. " + (err_msg or "Проверьте GITHUB_TOKEN и GITHUB_REPO."), chat_id)
         except Exception as e:
             print("Poll error:", e)
             time.sleep(10)
