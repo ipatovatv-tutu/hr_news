@@ -284,7 +284,7 @@ def collect_rss_news():
             used_titles.add(title)
             source_line = f'  <a href="{link}">Источник</a>\n' if link else ""
             block += (
-                f"• {title}\n"
+                f"• <b>{title}</b>\n"
                 f"  <i>{analysis}</i>\n"
                 f"{source_line}\n"
             )
@@ -335,7 +335,7 @@ def _add_vc_articles_to_block(articles, used_titles, max_items, source_label="vc
         used_titles.add(title)
         source_line = f'  <a href="{link}">Источник: {source_label}</a>\n' if link else ""
         block += (
-            f"• {title}\n"
+            f"• <b>{title}</b>\n"
             f"  <i>{analysis}</i>\n"
             f"{source_line}\n"
         )
@@ -548,7 +548,7 @@ def hr_digest_from_page_text(page_text: str, exclude_urls: set = None) -> str:
 Важно: в href вставляй только реальные ссылки из текста ленты — скопируй их буквально. Запрещено придумывать или подставлять примеры вроде 123456-slug.
 
 Формат вывода — готовый HTML для Telegram, только этот блок (сырой HTML, без обёртки в ```html или ```):
-• Заголовок
+• <b>Заголовок</b>
   Комментарий для HR: ...
   <a href="ПОЛНЫЙ_URL_ИЗ_ТЕКСТА_НИЖЕ">Источник: vc.ru</a>
 
@@ -600,7 +600,7 @@ def hr_digest_from_habr_text(page_text: str, exclude_urls: set = None) -> str:
 Важно: в href вставляй только реальные ссылки из текста — копируй их буквально. Запрещено придумывать URL.
 
 Формат вывода — готовый HTML для Telegram, только этот блок (сырой HTML, без обёртки в ```html или ```):
-• Заголовок
+• <b>Заголовок</b>
   Комментарий для HR: ...
   <a href="ПОЛНЫЙ_URL_ИЗ_ТЕКСТА_НИЖЕ">Источник: Хабр Карьера</a>
 
@@ -658,7 +658,7 @@ def hr_digest_from_habr_articles(articles: list) -> str:
 В каждую ссылку <a href="..."> вставляй только URL из поля «Ссылка:» — копируй буквально, заголовок и ссылка должны соответствовать одной и той же строке списка.
 
 Формат вывода — готовый HTML для Telegram (сырой HTML, без ```html):
-• Заголовок (точно из списка)
+• <b>Заголовок</b> (точно из списка)
   Комментарий для HR: ...
   <a href="URL_ИЗ_ПОЛЯ_ССЫЛКА_ЭТОЙ_СТРОКИ">Источник: Хабр Карьера</a>
 
