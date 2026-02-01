@@ -286,8 +286,8 @@ def _add_vc_articles_to_block(articles, used_titles, max_items, source_label="vc
         title = (item.get("title", "") or "").strip()
         link = _normalize_vc_redirect_link(item.get("link", "") or "")
         snippet = item.get("snippet", title)
-        # Не показываем обрезки вроде "подал", "hh.ru", "исследования" — только осмысленные заголовки
-        if not title or len(title) < 20 or title in used_titles:
+        # Пропускаем только явный мусор (очень короткие обрезки), иначе в дайджесте ничего не остаётся
+        if not title or len(title) < 10 or title in used_titles:
             continue
         if VC_FILTER_BY_HR_KEYWORDS:
             text = (title + " " + snippet).lower()
