@@ -118,7 +118,7 @@ def main():
                 chat_id = str(msg.get("chat", {}).get("id"))
                 if text.lower().startswith("/digest") or text.strip().lower() == "/дайджест":
                     print("Команда /digest от chat_id:", chat_id)
-                    send_telegram("Собираю дайджест… Запускаю на GitHub, через 1–2 минуты придёт сообщение.", chat_id)
+                    send_telegram("Собираю дайджест… Через 1–2 минуты придёт сообщение.", chat_id)
                     ok, err_msg = trigger_workflow(chat_id)
                     if ok:
                         send_telegram("Дайджест запущен. Ожидайте сообщение в этом чате.", chat_id)
