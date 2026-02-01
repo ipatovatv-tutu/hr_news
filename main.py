@@ -75,24 +75,61 @@ def extract_article_links(text: str) -> list:
     return list(dict.fromkeys(re.findall(pattern, text)))
 
 
+# Лимит Telegram — 4096 символов на сообщение; оставляем запас под HTML
+TELEGRAM_MAX_MESSAGE_LENGTH = 4000
+
+
+def _split_message_for_telegram(text: str, max_len: int = TELEGRAM_MAX_MESSAGE_LENGTH) -> list:
+    """Разбивает длинный текст на части по max_len, режет по границам абзацев (\\n\\n)."""
+    if not text or len(text) <= max_len:
+        return [text] if text else []
+    chunks = []
+    rest = text
+    while rest:
+        if len(rest) <= max_len:
+            chunks.append(rest)
+            break
+        part = rest[:max_len]
+        # Ищем последний двойной перенос, чтобы не резать посередине новости
+        last_para = part.rfind("\n\n")
+        if last_para > max_len // 2:
+            part = part[:last_para + 2].rstrip()
+            rest = rest[len(part):].lstrip()
+        else:
+            # Режем по одиночному переносу
+            last_n = part.rfind("\n")
+            if last_n > max_len // 2:
+                part = part[:last_n + 1].rstrip()
+                rest = rest[len(part):].lstrip()
+            else:
+                part = part.rstrip()
+                rest = rest[len(part):].lstrip()
+        chunks.append(part)
+    return chunks
+
+
 def send_to_telegram(text, chat_id=None):
-    """Отправляет сообщение в Telegram. chat_id по умолчанию — CHAT_ID."""
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    try:
-        r = requests.post(
-            url,
-            json={
-                "chat_id": chat_id or CHAT_ID,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True
-            },
-            timeout=30
-        )
-        if r.status_code != 200 or not r.json().get("ok"):
-            print("Telegram ошибка:", r.status_code, r.text[:500])
-    except Exception as e:
-        print("Telegram отправка ошибка:", e)
+    """Отправляет сообщение в Telegram. Если текст длиннее лимита — шлёт несколькими сообщениями."""
+    if not text or not text.strip():
+        return
+    chat_id = chat_id or CHAT_ID
+    for chunk in _split_message_for_telegram(text):
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        try:
+            r = requests.post(
+                url,
+                json={
+                    "chat_id": chat_id,
+                    "text": chunk,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True
+                },
+                timeout=30
+            )
+            if r.status_code != 200 or not r.json().get("ok"):
+                print("Telegram ошибка:", r.status_code, r.text[:500])
+        except Exception as e:
+            print("Telegram отправка ошибка:", e)
 
 
 def clean_digest_block(text: str) -> str:
