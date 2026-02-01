@@ -11,6 +11,7 @@ import threading
 import feedparser
 import requests
 from datetime import datetime
+from urllib.parse import parse_qs, urlparse, unquote
 from openai import OpenAI
 import asyncio
 from telethon import TelegramClient
@@ -121,6 +122,8 @@ def clean_digest_block(text: str) -> str:
         _link,
         s,
     )
+    # В готовом тексте заменяем оставшиеся api.vc.ru/redirect на реальный URL
+    s = re.sub(r'href="(https?://api\.vc\.ru/[^"]+)"', lambda m: f'href="{_normalize_vc_redirect_link(m.group(1))}"', s)
     return s
 
 # =====================
@@ -156,7 +159,7 @@ HR-сигнал: да / нет
         )
         return response.choices[0].message.content.strip()
     except Exception:
-        return "Ошибка анализа ИИ"
+        return "Материал по теме HR и карьеры."
 
 # =====================
 # RSS SOURCES
@@ -257,6 +260,22 @@ def collect_rss_news():
     return block, used_titles
 
 
+def _normalize_vc_redirect_link(link: str) -> str:
+    """Превращает api.vc.ru/redirect?to=... в реальный URL (декодирует to=)."""
+    if not link or "api.vc.ru" not in link or "redirect" not in link:
+        return link
+    try:
+        parsed = urlparse(link)
+        qs = parse_qs(parsed.query)
+        to_list = qs.get("to") or []
+        to = (to_list[0] if to_list else None)
+        if to:
+            return unquote(to)
+    except Exception:
+        pass
+    return link
+
+
 def _add_vc_articles_to_block(articles, used_titles, max_items, source_label="vc.ru"):
     """Общая логика: опционально фильтр по HR_KEYWORDS, ИИ, добавление в block."""
     block = ""
@@ -265,7 +284,7 @@ def _add_vc_articles_to_block(articles, used_titles, max_items, source_label="vc
         if added >= max_items:
             break
         title = item.get("title", "")
-        link = item.get("link", "")
+        link = _normalize_vc_redirect_link(item.get("link", "") or "")
         snippet = item.get("snippet", title)
         if not title or title in used_titles:
             continue
@@ -700,6 +719,11 @@ def collect_vc_news(used_titles, sent_articles=None):
         query=VC_DISCOVERY_QUERY,
         max_articles=VC_DISCOVERY_MAX,
     )
+    # Нормализуем ссылки api.vc.ru/redirect?to=... в реальные URL
+    def _norm(a_list):
+        return [{"title": x.get("title", ""), "link": _normalize_vc_redirect_link((x.get("link") or "").strip()), "snippet": x.get("snippet", x.get("title", ""))} for x in a_list]
+    articles_channel = _norm(articles_channel)
+    articles_discovery = _norm(articles_discovery)
     # Объединяем, убираем дубли по ссылке (channel первыми — там свежее)
     seen_links = set()
     merged = []
